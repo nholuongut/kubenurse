@@ -1,0 +1,41 @@
+name: Release Helm Charts
+on:
+  push:
+    tags:
+      - v*
+jobs:
+  release:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Configure Git
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.8.1
+
+
+      - name: Prepare version
+        run: |
+          export TAG=$(echo ${{ github.ref }} | cut -d '/' -f 3 - )
+          export VERSION=${TAG#v} # tag without leading v
+          echo TAG=${TAG} >> $GITHUB_ENV
+          echo "TAG: ${TAG}"
+          echo VERSION=${VERSION} >> $GITHUB_ENV
+          echo "VERSION: ${VERSION}"
+
+      - name: Run chart-releaser
+        uses: stefanprodan/helm-gh-pages@v1.7.0
+        with:
+          token: "${{ secrets.GITHUB_TOKEN }}"
+          app_version: "${{env.TAG}}"
+          chart_version: "${{env.VERSION}}"
+          charts_dir: helm

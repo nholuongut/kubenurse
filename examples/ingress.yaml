@@ -1,0 +1,22 @@
+# This resource is not needed if KUBENURSE_CHECK_ME_INGRESS=false
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kubenurse
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: kubenurse.example.com
+    http:
+      paths:
+      - pathType: Prefix
+        path: "/"
+        backend:
+          service:
+            name: kubenurse
+            port:
+              number: 8080
+  tls:
+  - hosts:
+    - kubenurse.example.com

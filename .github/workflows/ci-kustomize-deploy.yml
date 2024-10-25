@@ -1,0 +1,62 @@
+---
+name: deploy with kustomize
+on:
+  push:
+  pull_request:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - name: GoReleaser
+        uses: goreleaser/goreleaser-action@v4
+        with:
+          version: latest
+          args: release --snapshot --rm-dist --skip-publish
+      - name: Setup kind
+        uses: engineerd/setup-kind@v0.5.0
+        with:
+          config: "ci/kind-config.yaml"
+          version: "v0.11.1"
+          image: kindest/node:v1.23.1
+      - name: Show cluster info and switch to kube-system
+        run: |
+          kubectl cluster-info
+          kubectl get nodes
+          echo "current-context:" $(kubectl config current-context)
+          kubectl config set-context --current --namespace kube-system
+      - name: Deploy ingress-nginx
+        timeout-minutes: 2
+        run: |
+          kubectl apply -f \
+            https://raw.githubusercontent.com/kubernetes/ingress-nginx/master/deploy/static/provider/kind/deploy.yaml
+          kubectl wait --namespace ingress-nginx \
+            --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=90s
+      - name: Import image into kind
+        run: |
+          docker images
+          docker tag postfinance/kubenurse:latest \
+            postfinance/kubenurse:latest-ci
+          kind load docker-image postfinance/kubenurse:latest-ci
+      - name: Deploy example setup
+        run: |
+          kubectl apply -k ci/deployment/
+      - name: Wait for pods
+        timeout-minutes: 2
+        run: |
+          sleep 15 # wait for the scheduler to create pods
+          kubectl wait pods -l app.kubernetes.io/name=kubenurse --for=condition=Ready
+          kubectl get pods -l  app.kubernetes.io/name=kubenurse
+          kubectl rollout restart daemonset kubenurse
+          kubectl rollout status  daemonset kubenurse --timeout=1m
+          sleep 60 # Wait to generate some checks etc.
+      - name: Check deployment
+        uses: ./.github/actions/check-deployment
+        with:
+          namespace: kube-system
+          svc-domain: ingress-nginx-controller.ingress-nginx.svc.cluster.local

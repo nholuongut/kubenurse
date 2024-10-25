@@ -1,0 +1,17 @@
+---
+# This resource is not needed if KUBENURSE_CHECK_ME_SERVICE=false
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: kubenurse
+  name: kubenurse
+  namespace: kube-system
+spec:
+  ports:
+  - name: 8080-8080
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app.kubernetes.io/name: kubenurse
